@@ -1,0 +1,24 @@
+name: OIDC exchange test
+on: workflow_dispatch
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  exchange:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get OIDC token
+        run: |
+          OIDC=$(curl -s -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api.mergify.com")
+          echo "$OIDC" | jq -r '.value' > /tmp/id_token
+          echo "token length: $(wc -c < /tmp/id_token)"
+      - name: Exchange with Mergify
+        run: |
+          TOKEN=$(cat /tmp/id_token | tr -d '\n')
+          curl -s -X POST https://api.mergify.com/v1/ci/oidc/exchange \
+            -H 'Content-Type: application/json' \
+            -d "{\"id_token\": \"$TOKEN\"}" | tee /tmp/exchange.json
+      - name: Decode exchange response
+        run: |
+          cat /tmp/exchange.json | jq . || cat /tmp/exchange.json
